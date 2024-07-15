@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infraestructura EPS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .popup-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .popup-table th, .popup-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        .popup-table th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+        .popup-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .popup-table tr:hover {
+            background-color: #ddd;
+        }
+        .dashboard-header {
+            background-color: #3c8dbc;
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+            font-size: 24px;
+            width: 100%;
+        }
+        .dashboard-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 350px;
+            background-color: #f9f9f9;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            transition: width 0.3s;
+            overflow-y: auto;
+        }
+        .sidebar.collapsed {
+            width: 0;
+            padding: 20px 0;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .menu-button {
+            background-color: #3c8dbc;
+            color: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            z-index: 1000;
+        }
+        .select-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .action-button {
+            background-color: black;
+            color: white;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .map-container {
+            flex: 1;
+            padding: 20px;
+        }
+        .leaflet-map {
+            height: 100vh;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .value-box {
+            background-color: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .value-box-title {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .label-tooltip {
+        background-color: transparent; /* Fondo transparente */
+        border: none; /* Sin borde */
+        box-shadow: none; /* Sin sombra */
+        color: white; /* Color del texto */
+        font-size: 8px;
+        font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        Infraestructura EPS
+    </div>
+
+    <!-- Menu Button -->
+    <button class="menu-button" onclick="toggleSidebar()">☰ Menú</button>
+
+    <!-- Dashboard Body -->
+    <div class="dashboard-body">
+        
+        <!-- Sidebar -->
+        <div id="sidebar" class="sidebar">
+            <div class="sidebar-menu-item">
+                <label for="departamento">Selecciona un departamento:</label>
+                <select id="departamento" class="select-input">
+                    <option value="">Seleccionar todos los departamentos</option>
+                </select>
+            </div>
+            
+            <div class="sidebar-menu-item">
+                <label for="eps">Selecciona una EPS:</label>
+                <select id="eps" class="select-input">
+                    <option value="">Seleccione una EPS</option>
+                </select>
+            </div>
+            
+            <div class="sidebar-menu-item">
+                <label for="localidad">Selecciona una Localidad:</label>
+                <select id="localidad" class="select-input">
+                    <option value="">Seleccione una Localidad</option>
+                </select>
+            </div>
+            
+            <div class="sidebar-menu-item">
+                <label for="ccpp">Selecciona un Centro Poblado:</label>
+                <select id="ccpp" class="select-input">
+                    <option value="">Seleccione un Centro Poblado</option>
+                </select>
+            </div>
+            
+            <div class="sidebar-menu-item">
+                <label for="reservorio">Selecciona un Reservorio:</label>
+                <select id="reservorio" class="select-input">
+                    <option value="">Seleccione un Reservorio</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; justify-content: center; align-items: center; margin-top: 50px;">
+                <button id="reset_filters" class="action-button">Quitar filtro</button>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Map Container -->
+            <div class="map-container">
+                <div id="map" class="leaflet-map"></div>
+            </div>
+            
+            <!-- Value Boxes -->
+            <div class="value-boxes-container">
+                <div class="value-box">
+                    <div class="value-box-title">Número de Reservorios</div>
+                    <div id="numRes" class="value-box-content"></div>
+                </div>
+    
+                <div class="value-box">
+                    <div class="value-box-title">Volumen Promedio</div>
+                    <div id="meanVol" class="value-box-content"></div>
+                </div>
+    
+                <div class="value-box">
+                    <div class="value-box-title">Altura Promedio</div>
+                    <div id="meanAlt" class="value-box-content"></div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- Scripts (Agrega Leaflet y otros scripts necesarios) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://d3js.org/topojson.v1.min.js"></script>
+    <script>
+        var map = L.map('map').setView([-9.19, -75.0152], 5);
+        // Añade un mapa base
+        L.tileLayer('http://www.google.cn/maps/vt?lyrs=s@189&gl=cn&x={x}&y={y}&z={z}', {
+            attribution: 'Google Maps',
+            maxZoom: 18,
+        }).addTo(map);
+
+        var reservoirIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/1843/1843893.png',
+            iconSize: [30, 30], // Tamaño del ícono
+            iconAnchor: [15, 30], // Punto de anclaje del ícono (donde se coloca en el marcador)
+            popupAnchor: [0, -30] // Punto de anclaje del popup del marcador
+        });
+        var geojsonLayers = {};
+
+        function addGeoJSONLayer(url, objectName, styleOptions, labelProperty) {
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    var geojsonData = topojson.feature(data, data.objects[objectName]);
+                    var geojsonLayer = L.geoJSON(geojsonData, {
+                        style: styleOptions,
+                        onEachFeature: function (feature, layer) {
+                            if (feature.properties && feature.properties[labelProperty]) {
+                                layer.bindTooltip(feature.properties[labelProperty], {
+                                    permanent: true,
+                                    direction: "center",
+                                    className: "label-tooltip"
+                                }).openTooltip();
+                            }
+                        }
+                    });
+
+                    // Añadir la capa GeoJSON al mapa
+                    geojsonLayer.addTo(map);
+
+                    geojsonLayers[objectName] = geojsonLayer;
+                })
+                .catch(error => {
+                    console.error('Error fetching or parsing GeoJSON data:', error);
+                });
+        }
+
+        function toggleGeoJSONLayer(layerName) {
+            var layer = geojsonLayers[layerName];
+            if (layer) {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                } else {
+                    map.addLayer(layer);
+                }
+            } else {
+                console.error('Layer not found:', layerName);
+            }
+        }
+
+        // Llamar a la función para agregar las capas GeoJSON con estilos personalizados
+        var layerStyles = {
+            geojsonLayer: {
+                color: "black",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0
+            },
+            geojsonSectores: {
+                color: "red",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.5
+            }
+        };
+
+        addGeoJSONLayer('https://raw.githubusercontent.com/HermanMoreno98/DATA_DASH/main/depa.json', 'depa', layerStyles['geojsonLayer'], 'nomdep'); // Asegúrate de que la propiedad de etiqueta sea 'name'
+        addGeoJSONLayer('https://raw.githubusercontent.com/HermanMoreno98/DATA_DASH/main/sectores_op.json', 'sectores_op', layerStyles['geojsonSectores'], 'name'); // Asegúrate de que la propiedad de etiqueta sea 'name'
+
+        // Función para alternar la visibilidad del sidebar
+        function toggleSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+
+        function fetchReservoirData() {
+            return fetch('https://raw.githubusercontent.com/HermanMoreno98/DATA_DASH/main/Informacio%CC%81n%20sobre%20reservorios%20EPS.csv')
+                .then(response => response.text())
+                .then(data => {
+                    // Parsear CSV usando PapaParse
+                    let parsedData = Papa.parse(data, { header: true }).data;
+                    
+                    // Filtrar filas vacías
+                    parsedData = parsedData.filter(row => Object.values(row).some(value => value !== ''));
+
+                    // // Obtener opciones únicas para cada select
+                    // let departamentos = [...new Set(parsedData.map(item => item.ODS))];
+                    // let eps = [...new Set(parsedData.map(item => item.Nombre_EPS))];
+                    // let localidades = [...new Set(parsedData.map(item => item.Localidad))];
+                    // let reservorios = [...new Set(parsedData.map(item => item.Nombre_Reservorio))];
+                    // let ccpps = [...new Set(parsedData.map(item => item.CCPP))];
+
+                    // // Actualizar opciones de los select
+                    // updateSelectOptions('departamento', departamentos);
+                    // updateSelectOptions('eps', eps);
+                    // updateSelectOptions('localidad', localidades);
+                    // updateSelectOptions('reservorio', reservorios);
+                    // updateSelectOptions('ccpp', ccpps);
+
+                    console.log(parsedData); // Para ver los datos parseados en la consola
+                    return parsedData;
+                })
+                .catch(error => {
+                    console.error('Error fetching or parsing the data:', error);
+                });
+        }
+
+        // // Función para actualizar las opciones de un select
+        // function updateSelectOptions(selectId, options) {
+        //     let selectElement = document.getElementById(selectId);
+        //     selectElement.innerHTML = ''; // Limpiar opciones actuales
+
+        //     // Crear y añadir las nuevas opciones al select
+        //     options.forEach(option => {
+        //         let optionElement = document.createElement('option');
+        //         optionElement.value = option;
+        //         optionElement.textContent = option;
+        //         selectElement.appendChild(optionElement);
+        //     });
+        // }
+
+        let markersLayer = L.layerGroup();
+        // Función para agregar marcadores de reservorio con popups personalizados
+        function addReservoirMarkers(data) {
+            markersLayer.clearLayers();
+            let validMarkers = [];
+            data.forEach(function(feature) {
+                // Verificar que las coordenadas sean válidas
+                if (feature.Y && feature.X) {
+                    var marker = L.marker([parseFloat(feature.X), parseFloat(feature.Y)], { icon: reservoirIcon })
+                        .bindPopup(
+                            "<div style='max-height:300px; overflow-y:auto; overflow-x:auto;'>" +
+                            "<table class='popup-table'>" +
+                            "<tr><th>Nombre del Reservorio</th><td>" + feature.Nombre_Reservorio + "</td></tr>" +
+                            "<tr><th>Estado del Reservorio</th><td>" + feature['Estado Operativo'] + "</td></tr>" +
+                            "<tr><th>Tipo de Reservorio</th><td>" + feature['Tipo de Reservorio'] + "</td></tr>" +
+                            "<tr><th>Volumen de Reservorio (m3)</th><td>" + feature['Volumen Reservorio (m3)'] + "</td></tr>" +
+                            "<tr><th>Material del Reservorio</th><td>" + feature.Material + "</td></tr>" +
+                            "<tr><th>Foto panorámica</th><td><a href='" + feature.Foto_panoramica + "' target='_blank'><img src='" + feature.Foto_panoramica + "' style='width:200px;'></a></td></tr>" +
+                            "<tr><th>Foto de la tapa</th><td><a href='" + feature.Foto_tapa + "' target='_blank'><img src='" + feature.Foto_tapa + "' style='width:200px;'></a></td></tr>" +
+                            "<tr><th>Foto del estado</th><td><a href='" + feature.Foto_estado + "' target='_blank'><img src='" + feature.Foto_estado + "' style='width:200px;'></a></td></tr>" +
+                            "</table>" +
+                            "</div>"
+                        );
+                    markersLayer.addLayer(marker);
+                    // Agregar coordenadas válidas al arreglo
+                    validMarkers.push([parseFloat(feature.X), parseFloat(feature.Y)]);
+                }
+            });
+
+            markersLayer.addTo(map);
+
+            // Ajustar el zoom y centrar el mapa en los marcadores válidos
+            if (validMarkers.length > 0) {
+            map.fitBounds(validMarkers);
+    }
+        }
+
+        // function populateSelect(data) {
+        //     const selectElement = document.getElementById('departamento');
+            
+        //     // Obtener una lista única de departamentos
+        //     const departamentos = [...new Set(data.map(item => item.DEPA))];
+        //     console.log(departamentos)
+        //     // Crear opciones y agregarlas al select
+        //     departamentos.forEach(departamento => {
+        //         const option = document.createElement('option');
+        //         option.value = departamento;
+        //         option.textContent = departamento;
+        //         selectElement.appendChild(option);
+        //     });
+        // }
+
+        // // Llamar a la función para obtener los datos y luego poblar el select
+        // fetchReservoirData().then(data => {
+        //     if (data) {
+        //         addReservoirMarkers(data);
+        //     }
+        // });
+
+
+        // Variable para almacenar los datos del CSV
+        let reservoriosData = [];
+
+        // Función para cargar datos desde CSV y poblar los select
+        function loadAndPopulateSelects() {
+            fetch('https://raw.githubusercontent.com/HermanMoreno98/DATA_DASH/main/Informacio%CC%81n%20sobre%20reservorios%20EPS.csv')
+                .then(response => response.text())
+                .then(data => {
+                    // Parsear CSV usando PapaParse
+                    reservoriosData = Papa.parse(data, { header: true }).data;
+
+                    // Filtrar filas vacías
+                    reservoriosData = reservoriosData.filter(row => Object.values(row).some(value => value !== ''));
+
+                    // Obtener opciones únicas para el primer select (departamento)
+                    let departamentos = [...new Set(reservoriosData.map(item => item.ODS))];
+                    updateSelectOptions('departamento', departamentos);
+
+                    // Poblar EPS, localidad y reservorio con todas las opciones
+                    updateSelectOptions('eps', []);
+                    updateSelectOptions('localidad', []);
+                    updateSelectOptions('reservorio', []);
+                })
+                .catch(error => {
+                    console.error('Error fetching or parsing data:', error);
+                });
+        }
+
+
+        // Función para actualizar las opciones de un select
+        function updateSelectOptions(selectId, options) {
+            let selectElement = document.getElementById(selectId);
+            selectElement.innerHTML = ''; // Limpiar opciones actuales
+
+            // Crear opción por defecto
+            let defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = selectId === 'departamento' ? 'Seleccionar todos los departamentos' : `Seleccione un ${selectId}`;
+            selectElement.appendChild(defaultOption);
+
+            // Crear y añadir las nuevas opciones al select
+            options.forEach(option => {
+                let optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                selectElement.appendChild(optionElement);
+            });
+        }
+
+        // Función para filtrar y actualizar select
+        function filterAndUpdateSelect(selectId, filterKey, filterValue, name) {
+            let filteredOptions = [...new Set(reservoriosData.filter(item => item[filterKey] === filterValue).map(item => item[name]))];
+            updateSelectOptions(selectId, filteredOptions);
+        }
+
+        // Función para resetear todos los select a su estado inicial
+        function resetFilters() {
+            document.getElementById('departamento').value = '';
+            updateSelectOptions('eps', []);
+            updateSelectOptions('localidad', []);
+            updateSelectOptions('ccpp', []);
+            updateSelectOptions('reservorio', []);
+            addReservoirMarkers(reservoriosData);
+        }
+
+        // Event listener para el botón de resetear filtros
+        document.getElementById('reset_filters').addEventListener('click', function () {
+            resetFilters();
+        });
+
+        // Event listeners para cambios en los selects
+        document.addEventListener('DOMContentLoaded', function () {
+            loadAndPopulateSelects();
+
+            let selectedDepartamento = "";  // Variable global para almacenar el departamento seleccionado
+            let selectedEps = "";  // Variable global para almacenar el eps seleccionado
+            let selectedLocalidad = "";  // Variable global para almacenar la localidad seleccionada
+            let selectedCCPP = "";  // Variable global para almacenar el ccpp seleccionado
+
+            document.getElementById('departamento').addEventListener('change', function () {
+                selectedDepartamento = this.value;
+                selectedEps = "";  // Reinicia el EPS seleccionado
+                selectedLocalidad = "";  // Reinicia la localidad seleccionada
+                selectedCCPP = "";  // Reinicia el CCPP seleccionado
+                if (selectedDepartamento === "" || selectedDepartamento === "Seleccione todos los departamentos") {
+                    addReservoirMarkers(reservoriosData);
+                    updateSelectOptions('eps', []);
+                    updateSelectOptions('localidad', []);
+                    updateSelectOptions('ccpp', []);
+                    updateSelectOptions('reservorio', []);
+                } else {
+                    let filteredData = reservoriosData.filter(item => item.ODS === selectedDepartamento);
+                    addReservoirMarkers(filteredData);
+                    filterAndUpdateSelect('eps', 'ODS', selectedDepartamento, 'Nombre_EPS');
+                    updateSelectOptions('localidad', []);
+                    updateSelectOptions('ccpp', []);
+                    updateSelectOptions('reservorio', []);
+                }
+            });
+
+            document.getElementById('eps').addEventListener('change', function () {
+                selectedEps = this.value;
+                selectedLocalidad = "";  // Reinicia la localidad seleccionada
+                selectedCCPP = "";  // Reinicia el CCPP seleccionado
+                if (selectedEps === "" || selectedEps === "Seleccione un eps") {
+                    if (selectedDepartamento === "" || selectedDepartamento === "Seleccione todos los departamentos") {
+                        addReservoirMarkers(reservoriosData);
+                    } else {
+                        let filteredData = reservoriosData.filter(item => item.ODS === selectedDepartamento);
+                        addReservoirMarkers(filteredData);
+                    }
+                    updateSelectOptions('localidad', []);
+                    updateSelectOptions('ccpp', []);
+                    updateSelectOptions('reservorio', []);
+                } else {
+                    let filteredData = reservoriosData.filter(item => item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                    addReservoirMarkers(filteredData);
+                    filterAndUpdateSelect('localidad', 'Nombre_EPS', selectedEps, 'Localidad');
+                    updateSelectOptions('ccpp', []);
+                    updateSelectOptions('reservorio', []);
+                }
+            });
+
+            document.getElementById('localidad').addEventListener('change', function () {
+                selectedLocalidad = this.value;
+                selectedCCPP = "";  // Reinicia el CCPP seleccionado
+                if (selectedLocalidad === "" || selectedLocalidad === "Seleccione un localidad") {
+                    if (selectedEps === "" || selectedEps === "Seleccione un eps") {
+                        if (selectedDepartamento === "" || selectedDepartamento === "Seleccione todos los departamentos") {
+                            addReservoirMarkers(reservoriosData);
+                        } else {
+                            let filteredData = reservoriosData.filter(item => item.ODS === selectedDepartamento);
+                            addReservoirMarkers(filteredData);
+                        }
+                    } else {
+                        let filteredData = reservoriosData.filter(item => item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                        addReservoirMarkers(filteredData);
+                    }
+                    updateSelectOptions('ccpp', []);
+                    updateSelectOptions('reservorio', []);
+                } else {
+                    let filteredData = reservoriosData.filter(item => item.Localidad === selectedLocalidad && item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                    addReservoirMarkers(filteredData);
+                    filterAndUpdateSelect('ccpp', 'Localidad', selectedLocalidad, 'CCPP');
+                    updateSelectOptions('reservorio', []);
+                }
+            });
+
+            document.getElementById('ccpp').addEventListener('change', function () {
+                selectedCCPP = this.value;
+                if (selectedCCPP === "" || selectedCCPP === "Seleccione un ccpp") {
+                    if (selectedLocalidad === "" || selectedLocalidad === "Seleccione un localidad") {
+                        if (selectedEps === "" || selectedEps === "Seleccione un eps") {
+                            if (selectedDepartamento === "" || selectedDepartamento === "Seleccione todos los departamentos") {
+                                addReservoirMarkers(reservoriosData);
+                            } else {
+                                let filteredData = reservoriosData.filter(item => item.ODS === selectedDepartamento);
+                                addReservoirMarkers(filteredData);
+                            }
+                        } else {
+                            let filteredData = reservoriosData.filter(item => item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                            addReservoirMarkers(filteredData);
+                        }
+                    } else {
+                        let filteredData = reservoriosData.filter(item => item.Localidad === selectedLocalidad && item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                        addReservoirMarkers(filteredData);
+                    }
+                    updateSelectOptions('reservorio', []);
+                } else {
+                    let filteredData = reservoriosData.filter(item => item.CCPP === selectedCCPP && item.Localidad === selectedLocalidad && item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                    addReservoirMarkers(filteredData);
+                    filterAndUpdateSelect('reservorio', 'CCPP', selectedCCPP, 'Nombre_Reservorio');
+                }
+            });
+
+            document.getElementById('reservorio').addEventListener('change', function () {
+                let reservorio = this.value;
+
+                if (reservorio === "" || reservorio === "Seleccione un reservorio") {
+                    if (selectedCCPP === "" || selectedCCPP === "Seleccione un ccpp") {
+                        if (selectedLocalidad === "" || selectedLocalidad === "Seleccione un localidad") {
+                            if (selectedEps === "" || selectedEps === "Seleccione un eps") {
+                                if (selectedDepartamento === "" || selectedDepartamento === "Seleccione todos los departamentos") {
+                                    addReservoirMarkers(reservoriosData);
+                                } else {
+                                    let filteredData = reservoriosData.filter(item => item.ODS === selectedDepartamento);
+                                    addReservoirMarkers(filteredData);
+                                }
+                            } else {
+                                let filteredData = reservoriosData.filter(item => item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                                addReservoirMarkers(filteredData);
+                            }
+                        } else {
+                            let filteredData = reservoriosData.filter(item => item.Localidad === selectedLocalidad && item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                            addReservoirMarkers(filteredData);
+                        }
+                    } else {
+                        let filteredData = reservoriosData.filter(item => item.CCPP === selectedCCPP && item.Localidad === selectedLocalidad && item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                        addReservoirMarkers(filteredData);
+                    }
+                } else {
+                    let filteredData = reservoriosData.filter(item => item.Nombre_Reservorio === reservorio && item.CCPP === selectedCCPP && item.Localidad === selectedLocalidad && item.Nombre_EPS === selectedEps && item.ODS === selectedDepartamento);
+                    addReservoirMarkers(filteredData);
+                }
+            });
+
+            addReservoirMarkers(reservoriosData);
+
+
+        });
+    </script>
+</body>
+</html>
